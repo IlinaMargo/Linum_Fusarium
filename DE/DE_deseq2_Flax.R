@@ -17,7 +17,8 @@ library(DESeq2)
 library(grid)
 library(pheatmap)
 library(RColorBrewer)
-
+library(ggVennDiagram)
+library(ggplot2)
 
 # Задаём директорию, где находятся файлы
 dir <- "/media/eternus1/projects/milina/kallisto_output_de"
@@ -63,6 +64,9 @@ rld <- rlog(dds, blind = FALSE)
 all_counts <- assay(rld)
 
 
+
+
+
 ###ИЗВЛЕЧЕНИЕ ГЕНОВ ИЗ КОНТРОЛЬНЫХ ОБРАЗЦОВ, ЧТОБЫ ВЫЧЕСТЬ ИЗ ОСТАЛЬНЫХ ХИТМАПОВ
 samples_AtK3_AtK5 <- colnames(dds)[dds$group %in% c("AtK3", "AtK5")]
 
@@ -102,6 +106,7 @@ pheatmap(centered_all_counts,
          main = "Non-filtered genes (AtF3 vs AtK3)"  # Заголовок тепловой карты
 )
 dev.off()
+
 
 
 
@@ -419,6 +424,104 @@ dev.off()
 
 
 
+
+### Список генов background для GO
+
+# Извлечение таблицы каунтов
+all_colnames <- colnames(dds)[dds$group]
+counts_all <- counts(dds)[, all_colnames]
+
+# гены - бэкграунд для GO (получается 9к элементов) - итог: вектор с названиями
+exp_g_go_background <- rownames(counts_all[rowSums(counts_all != 0) > 0, ])
+
+
+
+
+### ОБЪЕДИНЕННЫЙ ХИТМАП
+# объединить гены
+# посчитать с повторностями и объединить их в единый table какой-то 
+## значимые гены: sig_genes_lfc (F3/K3), sig_genes_lfc3_5 (F3/F5), sig_genes_lfc_5 (F5/K5)
+# Объединяем списки значимых генов из трёх контрастов
+all_significant_genes <- unique(c(sig_genes_lfc, sig_genes_lfc3_5, sig_genes_lfc_5))
+# кол-во уникальных генов
+length(all_significant_genes)
+
+# Извлечение нормализованных данных для этих генов из rlog матрицы
+subset_rlog <- assay(rld)[all_significant_genes, ]
+dim(subset_rlog)
+# Центрирование значений по строкам (генам)
+subset_rlog_centered <- t(scale(t(subset_rlog), center = TRUE, scale = FALSE))
+
+# Задаем нужный порядок образцов
+sample_order <- c("AtF3_1", "AtF3_2", "AtF3_3", 
+                  "AtK3_1", "AtK3_2", "AtK3_3", 
+                  "AtF5_1", "AtF5_2", 
+                  "AtK5_1", "AtK5_2", "AtK5_3")
+
+# Переупорядочиваем столбцы в нормализованной матрице по этому порядку
+subset_rlog_centered <- subset_rlog_centered[, sample_order]
+
+# Определяем максимальное абсолютное значение для симметричной цветовой шкалы
+max_value <- max(abs(subset_rlog_centered))
+
+# Определяем минимальное и максимальное значения
+min_value <- -8.53
+max_value <- 8.53
+
+# Создаем breaks от min_value до max_value
+breaks <- seq(min_value, max_value, length.out = 100)
+
+# Определение цветовой палитры с белым цветом для значения 0
+color_palette <- colorRampPalette(c("blue", "white", "red"))(length(breaks) - 1)
+
+# Построение тепловой карты с заданными breaks
+png("heatmap_signif_all.png", width = 8, height = 8, units = "in", res = 150, type = "cairo")
+pheatmap(subset_rlog_centered, 
+         cluster_rows = TRUE,   # Кластеризация по строкам (гены)
+         cluster_cols = FALSE,  # Кластеризация по столбцам (образцы)
+         main = "Heatmap of Differentially Expressed Genes in all Samples",
+         show_rownames = FALSE, # Можно убрать названия генов, если их слишком много
+         show_colnames = TRUE,  # Показываем названия образцов
+         color = color_palette,  # Используем цветовую палитру
+         breaks = breaks,        # Задаем заданные breaks
+         distance = "manhattan",        # Используем Манхэттенское расстояние
+         clustering_method = "ward.D2", # Метод кластеризации Ward.D2
+         treeheight_row = 0             # Убираем дендрограмму строк
+)
+dev.off()
+
+png("heatmap_signif_all_manch_ward.d2.png", width = 8, height = 8, units = "in", res = 150, type = "cairo")
+pheatmap(subset_rlog_centered, 
+         cluster_rows = TRUE,   # Кластеризация по строкам (гены)
+         cluster_cols = FALSE,  # Кластеризация по столбцам (образцы)
+         main = "Heatmap of Differentially Expressed Genes in all Samples",
+         show_rownames = FALSE, # Можно убрать названия генов, если их слишком много
+         show_colnames = TRUE,  # Показываем названия образцов
+         color = color_palette,  # Используем цветовую палитру
+         breaks = breaks,        # Задаем заданные breaks
+         distance = "manhattan",        # Используем Манхэттенское расстояние
+         clustering_method = "ward.D2", # Метод кластеризации Ward.D2
+         treeheight_row = 0             # Убираем дендрограмму строк
+)
+dev.off()
+
+
+
+
+# Построение тепловой карты
+png("heatmap_signif_all.png", width = 8, height = 6, units = "in", res = 150, type = "cairo")
+pheatmap(subset_rlog_centered, 
+         cluster_rows = TRUE,   # Кластеризация по строкам (гены)
+         cluster_cols = FALSE,  # Кластеризация по столбцам (образцы)
+         main = "Heatmap of Differentially Expressed Genes in All Samples",
+         show_rownames = FALSE, # Можно убрать названия генов, если их слишком много
+         show_colnames = TRUE,  # Показываем названия образцов
+         color = color_palette, # Используем цветовую палитру
+         distance = "manhattan",        # Используем Манхэттенское расстояние
+         clustering_method = "ward.D2", # Метод кластеризации Ward.D2
+         treeheight_row = 0             # Убираем дендрограмму строк
+)
+dev.off()
 
 
 
