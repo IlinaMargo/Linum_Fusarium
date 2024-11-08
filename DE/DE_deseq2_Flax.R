@@ -21,7 +21,7 @@ library(ggVennDiagram)
 library(ggplot2)
 
 # Задаём директорию, где находятся файлы
-dir <- "/media/eternus1/projects/milina/kallisto_output_de"
+dir <- "/media/eternus1/projects/milina/kallisto_LU_DE/"
 
 ### КОД ДЛЯ ВСЕХ СЕМПЛОВ ###
 # Создаем вектор с именами образцов (если у вас есть файл samples, его можно использовать)
@@ -35,7 +35,7 @@ names(files) <- samples
 # Загружаем данные с помощью tximport
 txi.kallisto <- tximport(files, type = "kallisto", txOut = TRUE)
 # Проверяем загруженные данные
-head(txi.kallisto$counts)
+txi.kallisto$counts
 
 # Создание таблицы с информацией об условиях эксперимента
 sampleTable <- data.frame(
@@ -67,21 +67,22 @@ all_counts <- assay(rld)
 
 
 
-###ИЗВЛЕЧЕНИЕ ГЕНОВ ИЗ КОНТРОЛЬНЫХ ОБРАЗЦОВ, ЧТОБЫ ВЫЧЕСТЬ ИЗ ОСТАЛЬНЫХ ХИТМАПОВ
-samples_AtK3_AtK5 <- colnames(dds)[dds$group %in% c("AtK3", "AtK5")]
-
-# Извлечение нормализованных данных для AtK3 и AtK5
-samples_AtK3_AtK5 <- colnames(dds)[dds$group %in% c("AtK3", "AtK5")]
-counts_AtK3_AtK5 <- counts(dds)[, samples_AtK3_AtK5]
-
-# Фильтрация генов НЕНОРМАЛИЗОВАННЫХ ДАННЫХ, у которых есть экспрессия хотя бы в одном образце (ненулевое значение)
-expressed_genes_AtK3_AtK5 <- rownames(counts_AtK3_AtK5[rowSums(counts_AtK3_AtK5 != 0) > 0, ])
-
-# Например, исключаем эти гены из объекта DESeq2
-dds <- dds[!rownames(dds) %in% expressed_genes_AtK3_AtK5, ]
-rld <- rld[!rownames(rld) %in% expressed_genes_AtK3_AtK5, ]
-
-
+# ###ИЗВЛЕЧЕНИЕ ГЕНОВ ИЗ КОНТРОЛЬНЫХ ОБРАЗЦОВ, ЧТОБЫ ВЫЧЕСТЬ ИЗ ОСТАЛЬНЫХ ХИТМАПОВ
+# samples_AtK3_AtK5 <- colnames(dds)[dds$group %in% c("AtK3", "AtK5")]
+# 
+# # Извлечение нормализованных данных для AtK3 и AtK5
+# samples_AtK3_AtK5 <- colnames(dds)[dds$group %in% c("AtK3", "AtK5")]
+# counts_AtK3_AtK5 <- counts(dds)[, samples_AtK3_AtK5]
+# 
+# # Фильтрация генов НЕНОРМАЛИЗОВАННЫХ ДАННЫХ, у которых есть экспрессия хотя бы в одном образце (ненулевое значение)
+# expressed_genes_AtK3_AtK5 <- rownames(counts_AtK3_AtK5[rowSums(counts_AtK3_AtK5) >= 200, ])
+# nrow(dds)
+# # Например, исключаем эти гены из объекта DESeq2
+# dds <- dds[!rownames(dds) %in% expressed_genes_AtK3_AtK5, ]
+# rld <- rld[!rownames(rld) %in% expressed_genes_AtK3_AtK5, ]
+# nrow(dds)
+# # Извлечение нормализованных данных для всех генов
+# all_counts <- assay(rld)
 
 ### ХИТМАПЫ ДЛЯ НЕФИЛЬТРОВАННОГО
 ## Выбор образцов для AtF3 и AtK3
@@ -180,19 +181,26 @@ dev.off()
 
 ### ХИТМАПЫ ФИЛЬТРОВАННЫХ ЗНАЧЕНИЙ 
 ## Сравнение групп AtF3 и AtK3
-res_AtF3_AtK3 <- results(dds, contrast = c("group", "AtF3", "AtK3"), alpha = 0.5)
+res_AtF3_AtK3 <- results(dds, contrast = c("group", "AtF3", "AtK3"))
+saveRDS(res_AtF3_AtK3, file = "res_AtF3_AtK3.rds")
+# Преобразование объекта результатов в датафрейм
+df_AtF3_AtK3 <- as.data.frame(res_AtF3_AtK3)
 
 # Фильтрация значимых генов с порогом padj < 0.05 и |log2FoldChange| > 1.5
-sig_genes_lfc <- rownames(subset(res_AtF3_AtK3, padj < 0.05 & abs(log2FoldChange) > 1.5))
+sig_genes_lfc <- rownames(subset(res_AtF3_AtK3, padj <= 0.05 & abs(log2FoldChange) >= 2))
+# Сохранение вектора в файл
+save(sig_genes_lfc, file = "sig_genes_AtK3_AtF3.RData")
 
 # Извлечение нормализованных данных для значимых генов
 filtered_counts_lfc <- assay(rld)[sig_genes_lfc, ]
+
 
 # Выбор образцов для AtF3 и AtK3
 samples_AtF3_AtK3 <- colnames(dds)[dds$group %in% c("AtF3", "AtK3")]
 
 # Центрирование значений по строкам (генам)
 centered_filtered_counts_lfc <- t(scale(t(filtered_counts_lfc[, samples_AtF3_AtK3]), center=TRUE, scale=FALSE))
+
 
 # Построение тепловой карты для значимых генов с |LFC| > 1.5
 png("heatmap_F_AtF3_vs_AtK3.png", width = 8, height = 6, units = "in", res = 150, type="cairo")
@@ -209,11 +217,16 @@ dev.off()
 
 
 
+
 ## Сравнение групп AtF5 и AtK5
-res_AtF5_AtK5 <- results(dds, contrast = c("group", "AtF5", "AtK5"), alpha = 0.5)
+res_AtF5_AtK5 <- results(dds, contrast = c("group", "AtF5", "AtK5"))
+saveRDS(res_AtF5_AtK5, file = "res_AtF5_AtK5.rds")
+# Преобразование объекта результатов в датафрейм
+df_AtF5_AtK5 <- as.data.frame(res_AtF5_AtK5)
 
 # Фильтрация значимых генов с порогом padj < 0.05 и |log2FoldChange| > 1.5
-sig_genes_lfc_5 <- rownames(subset(res_AtF5_AtK5, padj < 0.05 & abs(log2FoldChange) > 1.5))
+sig_genes_lfc_5 <- rownames(subset(res_AtF5_AtK5, padj <= 0.05 & abs(log2FoldChange) >= 2))
+save(sig_genes_lfc_5, file = "sig_genes_AtK5_AtF5.RData")
 
 # Извлечение нормализованных данных для значимых генов
 filtered_counts_lfc_5 <- assay(rld)[sig_genes_lfc_5, ]
@@ -240,10 +253,14 @@ dev.off()
 
 
 ## Сравнение групп AtF3 и AtF5
-res_AtF3_AtF5 <- results(dds, contrast = c("group", "AtF3", "AtF5"), alpha = 0.5)
+res_AtF3_AtF5 <- results(dds, contrast = c("group", "AtF3", "AtF5"))
+saveRDS(res_AtF3_AtF5, file = "res_AtF3_AtF5.rds")
+# Преобразование объекта результатов в датафрейм
+df_AtF3_AtF5 <- as.data.frame(res_AtF3_AtF5)
 
 # Фильтрация значимых генов с порогом padj < 0.05 и |log2FoldChange| > 1.5
-sig_genes_lfc3_5 <- rownames(subset(res_AtF3_AtF5, padj < 0.05 & abs(log2FoldChange) > 1.5))
+sig_genes_lfc3_5 <- rownames(subset(res_AtF3_AtF5, padj <= 0.05 & abs(log2FoldChange) >= 2))
+save(sig_genes_lfc3_5, file = "sig_genes_AtF3_AtF5.RData")
 
 # Извлечение нормализованных данных для значимых генов
 filtered_counts_lfc3_5 <- assay(rld)[sig_genes_lfc3_5, ]
@@ -273,7 +290,8 @@ dev.off()
 ###ХИТМАПЫ ДЛЯ UP ГЕНОВ
 ## AtF3_vs_AtK3
 # Фильтрация значимых генов с порогом padj < 0.05 и LFC > 1.5
-up_genes_lfc <- rownames(subset(res_AtF3_AtK3, padj < 0.05 & log2FoldChange > 1.5))
+up_genes_lfc <- rownames(subset(res_AtF3_AtK3, padj <= 0.05 & log2FoldChange >= 2))
+save(up_genes_lfc, file = "up_sig_genes_AtK3_AtF3.RData")
 
 # Извлечение нормализованных данных для up-regulated генов
 filtered_counts_up_lfc <- assay(rld)[up_genes_lfc, ]
@@ -298,7 +316,8 @@ dev.off()
 
 ## Сравнение групп AtF5 и AtK5
 # Фильтрация значимых генов с порогом padj < 0.05 и LFC > 1.5
-up_genes_lfc_5 <- rownames(subset(res_AtF5_AtK5, padj < 0.05 & log2FoldChange > 1.5))
+up_genes_lfc_5 <- rownames(subset(res_AtF5_AtK5, padj <= 0.05 & log2FoldChange >= 2))
+save(up_genes_lfc_5, file = "up_sig_genes_AtK5_AtF5.RData")
 
 # Извлечение нормализованных данных для up-regulated генов
 filtered_counts_up_lfc_5 <- assay(rld)[up_genes_lfc_5, ]
@@ -321,7 +340,8 @@ dev.off()
 
 ## Сравнение групп AtF3 и AtF5
 # Фильтрация значимых генов с порогом padj < 0.05 и LFC > 1.5
-up_genes_lfc3_5 <- rownames(subset(res_AtF3_AtF5, padj < 0.05 & log2FoldChange > 1.5))
+up_genes_lfc3_5 <- rownames(subset(res_AtF3_AtF5, padj <= 0.05 & log2FoldChange >= 2))
+save(up_genes_lfc3_5, file = "up_sig_genes_AtF3_AtF5.RData")
 
 # Извлечение нормализованных данных для up-regulated генов
 filtered_counts_up_lfc3_5 <- assay(rld)[up_genes_lfc3_5, ]
@@ -350,7 +370,8 @@ dev.off()
 ### ХИТМАПЫ ДЛЯ DOWN ГЕНОВ
 ## AtF3_vs_AtK3
 # Фильтрация значимых генов с порогом padj < 0.05 и LFC < -1.5
-down_genes_lfc <- rownames(subset(res_AtF3_AtK3, padj < 0.05 & log2FoldChange < -1.5))
+down_genes_lfc <- rownames(subset(res_AtF3_AtK3, padj < 0.05 & log2FoldChange < -2))
+save(down_genes_lfc, file = "down_sig_genes_AtK3_AtF3.RData")
 
 # Извлечение нормализованных данных для down-regulated генов
 filtered_counts_down_lfc <- assay(rld)[down_genes_lfc, ]
@@ -375,7 +396,8 @@ dev.off()
 
 ## Сравнение групп AtF5 и AtK5 !!! НЕТ НИ ОДНОГО ЗНАЧЕНИЯ !!! (из за фильтрации контрольных генов)
 # Фильтрация значимых генов с порогом padj < 0.05 и LFC < -1.5
-down_genes_lfc_5 <- rownames(subset(res_AtF5_AtK5, padj < 0.05 & log2FoldChange < -1.5))
+down_genes_lfc_5 <- rownames(subset(res_AtF5_AtK5, padj <= 0.05 & log2FoldChange <= -2))
+save(down_genes_lfc_5, file = "down_sig_genes_AtK5_AtF5.RData")
 
 # Извлечение нормализованных данных для down-regulated генов
 filtered_counts_down_lfc_5 <- assay(rld)[down_genes_lfc_5, ]
@@ -394,13 +416,14 @@ pheatmap(centered_filtered_counts_down_lfc_5,
          main = "Down-regulated Genes (AtF5 vs AtK5)"  # Заголовок тепловой карты
 )
 dev.off()
-length(down_genes_lfc_5)
+
 
 
 
 ## Сравнение групп AtF3 и AtF5
 # Фильтрация значимых генов с порогом padj < 0.05 и LFC < -1.5
-down_genes_lfc3_5 <- rownames(subset(res_AtF3_AtF5, padj < 0.05 & log2FoldChange < -1.5))
+down_genes_lfc3_5 <- rownames(subset(res_AtF3_AtF5, padj <= 0.05 & log2FoldChange <= -2))
+save(down_genes_lfc3_5, file = "down_sig_genes_AtF3_AtF5.RData")
 
 # Извлечение нормализованных данных для down-regulated генов
 filtered_counts_down_lfc3_5 <- assay(rld)[down_genes_lfc3_5, ]
@@ -434,7 +457,8 @@ counts_all <- counts(dds)[, all_colnames]
 # гены - бэкграунд для GO (получается 9к элементов) - итог: вектор с названиями
 exp_g_go_background <- rownames(counts_all[rowSums(counts_all != 0) > 0, ])
 
-
+# Сохранение вектора в файл
+save(exp_g_go_background, file = "go_background.RData")
 
 
 ### ОБЪЕДИНЕННЫЙ ХИТМАП
@@ -447,7 +471,7 @@ all_significant_genes <- unique(c(sig_genes_lfc, sig_genes_lfc3_5, sig_genes_lfc
 length(all_significant_genes)
 
 # Извлечение нормализованных данных для этих генов из rlog матрицы
-subset_rlog <- assay(rld)[all_significant_genes, ]
+subset_rlog <- assay(vsd)[all_significant_genes, ]
 dim(subset_rlog)
 # Центрирование значений по строкам (генам)
 subset_rlog_centered <- t(scale(t(subset_rlog), center = TRUE, scale = FALSE))
@@ -465,8 +489,8 @@ subset_rlog_centered <- subset_rlog_centered[, sample_order]
 max_value <- max(abs(subset_rlog_centered))
 
 # Определяем минимальное и максимальное значения
-min_value <- -8.53
-max_value <- 8.53
+min_value <- -max(abs(subset_rlog_centered))
+max_value <- max(abs(subset_rlog_centered))
 
 # Создаем breaks от min_value до max_value
 breaks <- seq(min_value, max_value, length.out = 100)
@@ -475,7 +499,7 @@ breaks <- seq(min_value, max_value, length.out = 100)
 color_palette <- colorRampPalette(c("blue", "white", "red"))(length(breaks) - 1)
 
 # Построение тепловой карты с заданными breaks
-png("heatmap_signif_all.png", width = 8, height = 8, units = "in", res = 150, type = "cairo")
+png("heatmap_signif_all.png", width = 14, height = 8, units = "in", res = 150, type = "cairo")
 pheatmap(subset_rlog_centered, 
          cluster_rows = TRUE,   # Кластеризация по строкам (гены)
          cluster_cols = FALSE,  # Кластеризация по столбцам (образцы)
@@ -485,40 +509,7 @@ pheatmap(subset_rlog_centered,
          color = color_palette,  # Используем цветовую палитру
          breaks = breaks,        # Задаем заданные breaks
          distance = "manhattan",        # Используем Манхэттенское расстояние
-         clustering_method = "ward.D2", # Метод кластеризации Ward.D2
-         treeheight_row = 0             # Убираем дендрограмму строк
-)
-dev.off()
-
-png("heatmap_signif_all_manch_ward.d2.png", width = 8, height = 8, units = "in", res = 150, type = "cairo")
-pheatmap(subset_rlog_centered, 
-         cluster_rows = TRUE,   # Кластеризация по строкам (гены)
-         cluster_cols = FALSE,  # Кластеризация по столбцам (образцы)
-         main = "Heatmap of Differentially Expressed Genes in all Samples",
-         show_rownames = FALSE, # Можно убрать названия генов, если их слишком много
-         show_colnames = TRUE,  # Показываем названия образцов
-         color = color_palette,  # Используем цветовую палитру
-         breaks = breaks,        # Задаем заданные breaks
-         distance = "manhattan",        # Используем Манхэттенское расстояние
-         clustering_method = "ward.D2", # Метод кластеризации Ward.D2
-         treeheight_row = 0             # Убираем дендрограмму строк
-)
-dev.off()
-
-
-
-
-# Построение тепловой карты
-png("heatmap_signif_all.png", width = 8, height = 6, units = "in", res = 150, type = "cairo")
-pheatmap(subset_rlog_centered, 
-         cluster_rows = TRUE,   # Кластеризация по строкам (гены)
-         cluster_cols = FALSE,  # Кластеризация по столбцам (образцы)
-         main = "Heatmap of Differentially Expressed Genes in All Samples",
-         show_rownames = FALSE, # Можно убрать названия генов, если их слишком много
-         show_colnames = TRUE,  # Показываем названия образцов
-         color = color_palette, # Используем цветовую палитру
-         distance = "manhattan",        # Используем Манхэттенское расстояние
-         clustering_method = "ward.D2", # Метод кластеризации Ward.D2
+         clustering_method = "centroid", # Метод кластеризации Ward.D2
          treeheight_row = 0             # Убираем дендрограмму строк
 )
 dev.off()
@@ -565,7 +556,4 @@ dev.off()
 # 
 # # Сохранение в формате .xlsx
 # write.xlsx(significant_genes_df, "differential_expression_filtered.xlsx", rowNames = TRUE)
-# 
-# 
-# 
-# 
+
