@@ -3,9 +3,9 @@
 # }
 # remotes::install_github("YuLab-SMU/ggtree")
 # BiocManager::install("clusterProfiler")
-BiocManager::install("DOSE", force = TRUE)
-BiocManager::install("clusterProfiler", force = TRUE)
-BiocManager::install("ReactomePA", force = TRUE)
+# BiocManager::install("DOSE", force = TRUE)
+# BiocManager::install("clusterProfiler", force = TRUE)
+# BiocManager::install("ReactomePA", force = TRUE)
 
 library(clusterProfiler)
 library(dplyr)
@@ -104,18 +104,26 @@ compare_results_df <- as.data.frame(compare_results)
 compare_results_df <- compare_results_df %>%
   dplyr::filter(qvalue <= 0.01)
 
-
+head(compare_results_df)
 # Построение dot plot с помощью ggplot2
 library(ggplot2)
 
+# Подготовка данных: выделение чисел из GeneRatio и BgRatio для точного вычисления
+compare_results_df <- compare_results_df %>%
+  mutate(
+    BgRatio_numeric = as.numeric(sapply(strsplit(as.character(BgRatio), "/"), `[`, 1)) /
+      as.numeric(sapply(strsplit(as.character(BgRatio), "/"), `[`, 2))
+  )
+
+
 png("gg_GO_dotplot.png", width = 16, height = 10, units = "in", res = 150, type = "cairo")
-ggplot(compare_results_df, aes(x = Cluster, y = Description, size = -log10(qvalue), color = qvalue)) +
+ggplot(compare_results_df, aes(x = Cluster, y = Description, size = BgRatio_numeric, color = qvalue)) +
   geom_point() +
   scale_size_continuous(range = c(3, 10)) +  # Устанавливаем диапазон размера точек
   scale_color_gradient(low = "red", high = "blue") +  # Градиент цвета для qvalue
   ggtitle("GO Enrichment Analysis Across Contrasts") +
   theme_minimal() +
-  labs(x = "Contrast", y = "GO Terms", size = "-log10(qvalue)", color = "qvalue") +
+  labs(x = "Contrast", y = "GO Terms", size = "BgRatio", color = "qvalue") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Поворот подписей на оси X
 dev.off()
 
