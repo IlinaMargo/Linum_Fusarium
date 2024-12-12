@@ -271,3 +271,62 @@ ggplot(gsea_all_results, aes(x = Contrast, y = Description, color = p.adjust, si
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 dev.off()
+
+
+
+
+
+#### построение сетей
+### рисуем связь путей, чтобы показать какие то значимые взаимосвязи
+library(piano)
+data("gsa_input")
+# Форматируем gsc
+gsc <- as.matrix(go_annotations[, c("GeneID", "GO_term_description")])
+# Преобразуем в объект gene set collection
+geneSets <- loadGSC(gsc)
+
+# ## AtF3_AtK3
+# # Извлекаем p-values
+# pvals <- res_AtF3_AtK3$pvalue
+# # Присваиваем имена для векторов
+# names(pvals) <- rownames(res_AtF3_AtK3)
+# 
+# ## # Определяем направление изменений
+# directions <- ifelse(res_AtF3_AtK3$log2FoldChange > 0, 1, -1)
+# # Присваиваем имена для векторов
+# names(directions) <- rownames(res_AtF3_AtK3)
+
+# Извлекаем p-values
+pvals <- res_AtF5_AtK5$pvalue
+# Присваиваем имена для векторов
+names(pvals) <- rownames(res_AtF5_AtK5)
+
+## # Определяем направление изменений
+directions <- ifelse(res_AtF5_AtK5$log2FoldChange > 0, 1, -1)
+# Присваиваем имена для векторов
+names(directions) <- rownames(res_AtF5_AtK5)
+
+# Собираем gsa_input
+gsa_input <- list(
+  pvals = pvals,              # p-values
+  directions = directions,    # Направление изменений
+  gsc = gsc                   # Коллекция наборов генов
+)
+
+# Выявляем индексы, где p-values не NA
+valid_indices <- !is.na(gsa_input$pvals)
+# Отбираем только корректные данные
+gsa_input$pvals <- gsa_input$pvals[valid_indices]
+gsa_input$directions <- gsa_input$directions[valid_indices]
+
+
+gsares <- runGSA(
+  geneLevelStats = gsa_input$pvals,       # Передаем p-values
+  directions = gsa_input$directions,     # Направления изменений
+  gsc = geneSets,                   # Коллекция наборов генов
+  nPerm = 10000                          # Количество перестановок
+)
+
+networkPlot2(gsares, class = "non", significance = 0.05)
+
+
